@@ -110,7 +110,8 @@ optional arguments:
                         load songs from user's playlist into
                         <playlist_name>.txt (default: None)
   -m, --manual          choose the song to download manually (default: False)
-  -nm, --no-metadata    do not embed metadata in songs (default: False)
+  -nm, --no-metadata    do not embed metadata in songs (default: True)
+  -nfs, --no-file-storage    do not store metadata of songs in a file (default: False)
   -a, --avconv          Use avconv for conversion otherwise set defaults to
                         ffmpeg (default: False)
   -f FOLDER, --folder FOLDER
@@ -318,3 +319,11 @@ Please support the artists by buying their music.
 ## License
 
 [![License](https://img.shields.io/github/license/ritiek/spotify-downloader.svg)](https://github.com/ritiek/spotify-downloader/blob/master/LICENSE)
+
+
+## Usage QwantMusic
+
+~~~
+mongoexport --db spotifyData --collection songs --type=csv --fields id,popularity --out songs_with_popularity.csv
+sort -r -t',' -k2 songs_with_popularity.csv > songs_with_popularity_ordered.csv
+~~~

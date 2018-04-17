@@ -7,8 +7,12 @@ from core import convert
 from core import internals
 from core import spotify_tools
 from core import youtube_tools
+
+from collections import defaultdict
 from slugify import slugify
+import json
 import spotipy
+import subprocess
 import urllib.request
 import os
 import sys
@@ -72,18 +76,19 @@ def download_list(text_file):
 
     log.info(u'Preparing to download {} songs'.format(len(lines)))
     downloaded_songs = []
+    analysed_songs = []
 
     for number, raw_song in enumerate(lines, 1):
         print('')
         try:
-            download_single(raw_song, number=number)
+            filepath = download_single(raw_song, number=number)
         # token expires after 1 hour
         except spotipy.client.SpotifyException:
             # refresh token when it expires
             log.debug('Token expired, generating new one and authorizing')
             new_token = spotify_tools.generate_token()
             spotify_tools.spotify = spotipy.Spotify(auth=new_token)
-            download_single(raw_song, number=number)
+            filepath = download_single(raw_song, number=number)
         # detect network problems
         except (urllib.request.URLError, TypeError, IOError):
             lines.append(raw_song)
@@ -98,8 +103,11 @@ def download_list(text_file):
             continue
 
         downloaded_songs.append(raw_song)
+        analyse_single(filepath)
+        analysed_songs.append(raw_song)
         log.debug('Removing downloaded song from text file')
         internals.trim_song(text_file)
+
 
     return downloaded_songs
 
@@ -110,9 +118,9 @@ def download_single(raw_song, number=None):
         log.debug('Input song is a YouTube URL')
         content = youtube_tools.go_pafy(raw_song, meta_tags=None)
         raw_song = slugify(content.title).replace('-', ' ')
-        meta_tags = spotify_tools.generate_metadata(raw_song)
+        meta_tags, audio_analysis, audio_features = spotify_tools.generate_metadata(raw_song)
     else:
-        meta_tags = spotify_tools.generate_metadata(raw_song)
+        meta_tags, audio_analysis, audio_features = spotify_tools.generate_metadata(raw_song)
         content = youtube_tools.go_pafy(raw_song, meta_tags)
 
     if content is None:
@@ -164,7 +172,43 @@ def download_single(raw_song, number=None):
                 os.remove(os.path.join(const.args.folder, input_song))
             if not const.args.no_metadata and meta_tags is not None:
                 metadata.embed(os.path.join(const.args.folder, output_song), meta_tags)
-            return True
+            if not const.args.no_file_storage and meta_tags is not None:
+                with open(os.path.join(const.args.folder, 'metadata.csv'), 'a+') as metadata_file:
+                    spotify_keys = ['id', 'name', 'popularity', 'track_number', 'genre',
+                        'release_date', 'publisher', 'total_tracks', 'lyrics', 'year',
+                        'duration', 'external_ids.isrc', 'artists.name', 'artists.id',
+                        'album.name', 'album.id', 'album.release_date',
+                        'album.release_date_precision']
+                    meta_to_store = defaultdict(lambda: defaultdict())
+                    for key in spotify_keys:
+                        if '.' in key:
+                            key1, key2 = key.split('.')
+                            if 'artists.' not in key:
+                                meta_to_store['spotify'][key] = meta_tags[key1][key2]
+                            else:
+                                meta_to_store['spotify'][key] = meta_tags[key1][0][key2]
+                        else:
+                            meta_to_store['spotify'][key] = meta_tags[key]
+                    meta_to_store['youtube'] = {'videoid': content.videoid,
+                                                'title': content.title,
+                                                'duration': content.duration}
+                    metadata_file.write(json.dumps(meta_to_store))
+                    metadata_file.write('\n')
+                    print(json.dumps(meta_to_store))
+            # return filepath
+            return os.path.join(const.args.folder, output_song)
+
+            # TODO:perrine: commenter qu'il n'y a pas de score retournés par l'API search de google
+            # TODO:perrine: sauver dans un db
+
+    def analyse_single(filepath):
+        """Launch ircam audio analyser""""
+        command = ['echo ${const.args.ircam_key} | ./ircam_music_description_demo-1.1.0',
+                   '-i', filepath,
+                   '-o', self.output_file ]
+
+        log.debug(command)
+        return subprocess.call(command)
 
 
 if __name__ == '__main__':

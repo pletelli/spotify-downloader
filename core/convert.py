@@ -61,12 +61,16 @@ class Converter:
                 ffmpeg_params = '-codec:v copy -codec:a libmp3lame -ar 44100 '
             elif output_ext == '.webm':
                 ffmpeg_params = '-codec:a libopus -vbr on '
+            elif output_ext == '.wav':
+                ffmpeg_params = ''
 
         elif input_ext == '.webm':
             if output_ext == '.mp3':
                 ffmpeg_params = '-codec:a libmp3lame -ar 44100 '
             elif output_ext == '.m4a':
                 ffmpeg_params = '-cutoff 20000 -codec:a libfdk_aac -ar 44100 '
+            elif output_ext == '.wav':
+                ffmpeg_params = ''
 
         # add common params for any of the above combination
         ffmpeg_params += '-b:a 192k -vn '
